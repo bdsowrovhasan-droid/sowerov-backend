@@ -26,6 +26,7 @@
     "ioredis": "^5.4.1",
     "socket.io": "^4.7.5",
     "@socket.io/redis-adapter": "^8.2.1",
+    "redis": "^4.6.13",
     "express-rate-limit": "^7.4.0",
     "bad-words": "^3.0.4",
     "cookie-parser": "^1.4.6",
