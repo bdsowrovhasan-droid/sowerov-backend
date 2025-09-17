@@ -3,11 +3,12 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 
-// DB ফাইলের লোকেশন: ENV থেকে নেবে, না থাকলে প্রজেক্ট রুটে data.sqlite
-const dbFile =
-  process.env.DB_FILE || path.join(process.cwd(), "data.sqlite");
+// Writable লোকেশন: Render-এর জন্য নিরাপদ path
+// যদি DB_FILE environment variable থাকে, সেটাই ব্যবহার করবে
+// না থাকলে প্রজেক্ট root এ data.sqlite বানাবে
+const dbFile = process.env.DB_FILE || path.join(process.cwd(), "data.sqlite");
 
-// ⚠️ গুরুত্বপূর্ণ: ফোল্ডারটা না থাকলে বানিয়ে নিই (Render এ DB_FILE সাধারণত /var/data/data.sqlite)
+// ডিরেক্টরি না থাকলে বানিয়ে নিন
 fs.mkdirSync(path.dirname(dbFile), { recursive: true });
 
 const firstBoot = !fs.existsSync(dbFile);
@@ -87,7 +88,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 `);
 
-// --- Migrations (best-effort) ---
+// --- Migrations ---
 try {
   db.exec(`
     ALTER TABLE videos ADD COLUMN is_private INTEGER DEFAULT 0;
@@ -114,9 +115,8 @@ try {
       PRIMARY KEY (group_id, user_id)
     );
   `);
-} catch (e) { /* ignore if already applied */ }
+} catch (e) { /* ignore */ }
 
-// --- Admin/Ban migrations ---
 try {
   db.exec(`
     ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;
@@ -124,7 +124,6 @@ try {
   `);
 } catch (e) { /* ignore */ }
 
-// --- Analytics, OTP/MFA, Subscriptions, Moderation, Search (FTS) ---
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS video_views (
@@ -193,9 +192,8 @@ try {
     ALTER TABLE videos ADD COLUMN requires_subscription INTEGER DEFAULT 0;
     ALTER TABLE comments ADD COLUMN flagged INTEGER DEFAULT 0;
   `);
-} catch (e) { /* ignore if already exist */ }
+} catch (e) { /* ignore */ }
 
-// FTS5 for search (if available)
 try {
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS videos_fts USING fts5(title, content='videos', content_rowid='id');
@@ -210,9 +208,8 @@ try {
       INSERT INTO videos_fts(rowid, title) VALUES (new.id, coalesce(new.title,''));
     END;
   `);
-} catch (e) { /* FTS not available */ }
+} catch (e) { /* ignore */ }
 
-// --- AI Recommendation tables ---
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS video_embeddings (
@@ -227,3 +224,4 @@ try {
     );
   `);
 } catch (e) { /* ignore */ }
+
