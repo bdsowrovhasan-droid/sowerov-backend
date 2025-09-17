@@ -8,9 +8,9 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { db } from "./src/db.js";
-import { hashSync, genSaltSync, compareSync } from "bcryptjs";
+import pkg from "bcryptjs";
+const { hashSync, genSaltSync, compareSync } = pkg;
 import jwt from "jsonwebtoken";
-
 import uploadRoutes from "./src/routes/upload.js";
 import socialRoutes from "./src/routes/social.js";
 import socialExtras from "./src/routes/social_extras.js";
