@@ -1,13 +1,22 @@
+// src/db.js
 import Database from "better-sqlite3";
 import fs from "fs";
-const dbFile = process.env.DB_FILE || "data.sqlite";
+import path from "path";
+
+// DB ফাইলের লোকেশন: ENV থেকে নেবে, না থাকলে প্রজেক্ট রুটে data.sqlite
+const dbFile =
+  process.env.DB_FILE || path.join(process.cwd(), "data.sqlite");
+
+// ⚠️ গুরুত্বপূর্ণ: ফোল্ডারটা না থাকলে বানিয়ে নিই (Render এ DB_FILE সাধারণত /var/data/data.sqlite)
+fs.mkdirSync(path.dirname(dbFile), { recursive: true });
+
 const firstBoot = !fs.existsSync(dbFile);
 export const db = new Database(dbFile);
-if(firstBoot){
+
+if (firstBoot) {
   db.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS users (
-
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
@@ -26,7 +35,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     title TEXT,
-    hls_path TEXT NOT NULL, -- e.g. videos/hls/{videoId}/master.m3u8
+    hls_path TEXT NOT NULL,
     thumb_url TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY(user_id) REFERENCES users(id)
@@ -70,8 +79,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    type TEXT NOT NULL, -- LIKE, COMMENT, FOLLOW, MESSAGE
-    data TEXT,          -- JSON payload
+    type TEXT NOT NULL,
+    data TEXT,
     is_read INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -79,30 +88,33 @@ db.exec(`
 `);
 
 // --- Migrations (best-effort) ---
-try { db.exec(`ALTER TABLE videos ADD COLUMN is_private INTEGER DEFAULT 0;
-CREATE TABLE IF NOT EXISTS reports (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  reporter_id INTEGER NOT NULL,
-  target_type TEXT NOT NULL, -- 'video' | 'comment' | 'user'
-  target_id INTEGER NOT NULL,
-  reason TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS groups (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  owner_id INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  about TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS group_members (
-  group_id INTEGER NOT NULL,
-  user_id INTEGER NOT NULL,
-  role TEXT DEFAULT 'member',
-  created_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (group_id, user_id)
-);
-`); } catch(e) { /* ignore if already applied */ }
+try {
+  db.exec(`
+    ALTER TABLE videos ADD COLUMN is_private INTEGER DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reporter_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      reason TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      about TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS group_members (
+      group_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT DEFAULT 'member',
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (group_id, user_id)
+    );
+  `);
+} catch (e) { /* ignore if already applied */ }
 
 // --- Admin/Ban migrations ---
 try {
@@ -110,7 +122,7 @@ try {
     ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;
     ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;
   `);
-} catch(e) { /* ignore */ }
+} catch (e) { /* ignore */ }
 
 // --- Analytics, OTP/MFA, Subscriptions, Moderation, Search (FTS) ---
 try {
@@ -137,7 +149,7 @@ try {
     CREATE TABLE IF NOT EXISTS user_mfa (
       user_id INTEGER PRIMARY KEY,
       enabled INTEGER DEFAULT 0,
-      method TEXT DEFAULT 'email' -- email for now
+      method TEXT DEFAULT 'email'
     );
 
     CREATE TABLE IF NOT EXISTS plans (
@@ -171,19 +183,17 @@ try {
 
     CREATE TABLE IF NOT EXISTS moderation_queue (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      target_type TEXT NOT NULL, -- 'VIDEO'|'COMMENT'|'USER'
+      target_type TEXT NOT NULL,
       target_id INTEGER NOT NULL,
       reason TEXT,
       status TEXT DEFAULT 'PENDING',
       created_at TEXT DEFAULT (datetime('now'))
     );
 
-    -- Extra flags
     ALTER TABLE videos ADD COLUMN requires_subscription INTEGER DEFAULT 0;
     ALTER TABLE comments ADD COLUMN flagged INTEGER DEFAULT 0;
-
   `);
-} catch(e) { /* ignore if already exist */ }
+} catch (e) { /* ignore if already exist */ }
 
 // FTS5 for search (if available)
 try {
@@ -200,8 +210,7 @@ try {
       INSERT INTO videos_fts(rowid, title) VALUES (new.id, coalesce(new.title,''));
     END;
   `);
-} catch(e) { /* FTS not available */ }
-
+} catch (e) { /* FTS not available */ }
 
 // --- AI Recommendation tables ---
 try {
@@ -217,4 +226,4 @@ try {
       updated_at TEXT DEFAULT (datetime('now'))
     );
   `);
-} catch(e) { /* ignore */ }
+} catch (e) { /* ignore */ }
